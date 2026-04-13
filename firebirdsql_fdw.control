@@ -1,0 +1,5 @@
+comment = 'Firebird Foreign Data Wrapper for PostgreSQL'
+default_version = '0.1.0'
+module_pathname = '$libdir/firebirdsql_fdw'
+relocatable = false
+superuser = false

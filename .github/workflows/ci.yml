@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Firebird connection used by integration tests (matches the Docker service below)
+  FIREBIRD_HOST: localhost
+  FIREBIRD_PORT: "3050"
+  FIREBIRD_DB: /firebird/data/test.fdb
+  FIREBIRD_USER: SYSDBA
+  FIREBIRD_PASSWORD: masterkey
+
+jobs:
+  test:
+    name: Test (pg18)
+    runs-on: ubuntu-latest
+
+    services:
+      firebird:
+        image: jacobalberty/firebird:latest
+        env:
+          ISC_PASSWORD: masterkey      # sets SYSDBA password
+          FIREBIRD_DATABASE: test.fdb  # auto-creates the database
+        ports:
+          - 3050:3050
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y curl gnupg lsb-release
+          # Add the official PostgreSQL Global Development Group (PGDG) apt repo
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
+            https://apt.postgresql.org/pub/repos/apt \
+            $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            postgresql-18 postgresql-server-dev-18 \
+            libreadline-dev flex bison libclang-dev
+
+      - name: Allow current user to write to pg18 extension directories
+        run: |
+          sudo chown -R "$USER" \
+            /usr/share/postgresql/18/extension \
+            /usr/lib/postgresql/18/lib
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Cache cargo-pgrx binary
+        id: cache-pgrx
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-pgrx
+          key: ${{ runner.os }}-cargo-pgrx-0.16.1
+
+      - name: Install cargo-pgrx
+        if: steps.cache-pgrx.outputs.cache-hit != 'true'
+        run: cargo install cargo-pgrx --version =0.16.1 --locked
+
+      - name: Set BINDGEN_EXTRA_CLANG_ARGS
+        run: |
+          GCC_INCLUDE=$(dirname "$(gcc -print-libgcc-file-name)")
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-I${GCC_INCLUDE}" >> "$GITHUB_ENV"
+
+      - name: Initialize pgrx for pg18
+        run: cargo pgrx init --pg18 /usr/lib/postgresql/18/bin/pg_config
+
+      - name: Wait for Firebird and seed test database
+        run: |
+          CONTAINER=$(docker ps -q --filter "ancestor=jacobalberty/firebird:latest" | head -1)
+          ISQL=/usr/local/firebird/bin/isql
+          # Retry until the DB accepts queries (up to 60 s)
+          for i in $(seq 30); do
+            docker exec "$CONTAINER" \
+              "$ISQL" -user SYSDBA -password masterkey \
+              "localhost:/firebird/data/test.fdb" \
+              -e "SELECT 1 FROM RDB\$DATABASE;" 2>/dev/null && break
+            echo "Waiting for Firebird... ($i/30)"
+            sleep 2
+          done
+          # Seed tables and data
+          docker exec -i "$CONTAINER" \
+            "$ISQL" -user SYSDBA -password masterkey \
+            "localhost:/firebird/data/test.fdb" \
+            < docker/firebird-init.sql
+
+      - name: Run unit tests
+        run: cargo test --features pg18 unit_tests
+
+      - name: Run integration tests
+        run: cargo pgrx test pg18

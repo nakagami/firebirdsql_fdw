@@ -1,0 +1,41 @@
+[package]
+name = "firebirdsql_fdw"
+version = "0.1.0"
+edition = "2021"
+description = "Firebird Foreign Data Wrapper for PostgreSQL using pgrx and supabase-wrappers"
+license = "MIT"
+repository = "https://github.com/nakagami/firebirdsql_fdw"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "pgrx_embed_firebirdsql_fdw"
+path = "./src/bin/pgrx_embed.rs"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(pgrx_embed)'] }
+
+[features]
+default = ["pg18"]
+pg13 = ["pgrx/pg13", "pgrx-tests/pg13", "supabase-wrappers/pg13"]
+pg14 = ["pgrx/pg14", "pgrx-tests/pg14", "supabase-wrappers/pg14"]
+pg15 = ["pgrx/pg15", "pgrx-tests/pg15", "supabase-wrappers/pg15"]
+pg16 = ["pgrx/pg16", "pgrx-tests/pg16", "supabase-wrappers/pg16"]
+pg17 = ["pgrx/pg17", "pgrx-tests/pg17", "supabase-wrappers/pg17"]
+pg18 = ["pgrx/pg18", "pgrx-tests/pg18", "supabase-wrappers/pg18"]
+pg_test = []
+
+[dependencies]
+pgrx = "=0.16.1"
+supabase-wrappers = { version = "0.1.26", default-features = false }
+firebirust = "0.6.2"
+thiserror = "1.0"
+chrono = "0.4"
+chrono-tz = "0.6"
+rust_decimal = "1.15"
+num-traits = "0.2"
+serde_json = "1"
+
+[dev-dependencies]
+pgrx-tests = "=0.16.1"

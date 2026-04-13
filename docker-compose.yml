@@ -1,0 +1,34 @@
+version: "3.9"
+
+# Firebird database server for integration tests.
+#
+# Usage:
+#   docker compose up -d
+#   # Wait ~10 s for the server to be ready, then run:
+#   FIREBIRD_DB=/firebird/data/test.fdb cargo pgrx test pg18
+#
+# The init SQL below creates the test database and a simple T1 table so the
+# pgrx integration tests have data to query.
+
+services:
+  firebird:
+    image: jacobalberty/firebird:latest
+    environment:
+      ISC_PASSWORD: masterkey          # SYSDBA password
+      FIREBIRD_DATABASE: test.fdb      # auto-created on first start
+    ports:
+      - "3050:3050"
+    volumes:
+      - firebird_data:/firebird/data
+      - ./docker/firebird-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "/usr/local/firebird/bin/isql",
+             "-user", "SYSDBA", "-password", "masterkey",
+             "localhost:/firebird/data/test.fdb",
+             "-e", "SELECT 1 FROM RDB$DATABASE;"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  firebird_data:
