@@ -2,6 +2,7 @@
 name = "firebirdsql_fdw"
 version = "0.1.0"
 edition = "2021"
+authors = ["Hajime Nakagami <nakagami@gmail.com>"]
 description = "Firebird Foreign Data Wrapper for PostgreSQL using pgrx and supabase-wrappers"
 license = "MIT"
 repository = "https://github.com/nakagami/firebirdsql_fdw"
