@@ -20,6 +20,7 @@ The Firebird client driver is [firebirust](https://crates.io/crates/firebirust).
 | Rust | stable ≥ 1.75 |
 | cargo-pgrx | = 0.16.1 |
 | PostgreSQL dev headers | 13 – 18 |
+| gcc **or** clang | any recent version |
 | libclang | any recent version |
 
 On Ubuntu/Debian you may also need:
@@ -28,20 +29,11 @@ On Ubuntu/Debian you may also need:
 sudo apt-get install libreadline-dev flex bison
 ```
 
-If `bindgen` cannot find `stddef.h`, add the GCC include path to
-`.cargo/config.toml` (create this file locally — it is gitignored because the
-path is architecture/compiler-version-specific):
-
-```toml
-[env]
-BINDGEN_EXTRA_CLANG_ARGS = "-I/usr/lib/gcc/x86_64-linux-gnu/15/include"
-```
-
-Or set it dynamically in your shell before running cargo:
-
-```bash
-export BINDGEN_EXTRA_CLANG_ARGS="-I$(dirname $(gcc -print-libgcc-file-name))"
-```
+The compiler internal include path (needed by `bindgen` to locate `stddef.h`) is
+resolved automatically at build time via `build.rs`: it tries
+`gcc -print-libgcc-file-name` first, then falls back to `clang -print-resource-dir`.
+No manual configuration is required and the build works on any architecture
+(x86\_64, aarch64, …).
 
 ## Building
 
